@@ -7,6 +7,9 @@ import { PlusIcon } from './components/icons/PlusIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { TrashIcon } from './components/icons/TrashIcon';
 import { STATUS_COLORS } from './constants';
+import { WhatsAppIcon } from './components/icons/WhatsAppIcon';
+import { SaveIcon } from './components/icons/SaveIcon';
+import { CheckIcon } from './components/icons/CheckIcon';
 
 const initialLeads: Lead[] = [
   { id: '1', name: 'John Doe', phone: '+1-555-123-4567', company: 'Innovate Corp', status: LeadStatus.New, notes: 'Met at the tech conference. Interested in our AI solutions. Follow up about pricing.', updatedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
@@ -17,18 +20,288 @@ const initialLeads: Lead[] = [
 ];
 
 type View = 'list' | 'detail' | 'add';
+type SaveState = 'idle' | 'saving' | 'saved';
+
+
+// --- Standalone Components ---
+interface LeadListProps {
+    sortedLeads: Lead[];
+    selectedLead: Lead | null;
+    onSelectLead: (lead: Lead) => void;
+    onShowAddForm: () => void;
+    formatDateTime: (isoString: string) => string;
+    onSaveChanges: () => void;
+    hasUnsavedChanges: boolean;
+    saveState: SaveState;
+}
+
+const LeadList: React.FC<LeadListProps> = ({ sortedLeads, selectedLead, onSelectLead, onShowAddForm, formatDateTime, onSaveChanges, hasUnsavedChanges, saveState }) => (
+    <div className="flex flex-col h-full bg-white border-r border-gray-200">
+        <div className="p-4 border-b flex items-center space-x-2">
+            <button
+                onClick={onShowAddForm}
+                className="flex-1 flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 font-medium shadow-sm"
+            >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Add New Lead
+            </button>
+            <button
+                onClick={onSaveChanges}
+                disabled={!hasUnsavedChanges || saveState === 'saving'}
+                className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg font-medium shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+                    ${!hasUnsavedChanges && saveState !== 'saved' ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : ''}
+                    ${hasUnsavedChanges && saveState === 'idle' ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500' : ''}
+                    ${saveState === 'saving' ? 'bg-blue-400 text-white cursor-wait' : ''}
+                    ${saveState === 'saved' || (!hasUnsavedChanges && saveState === 'idle') ? 'bg-green-500 text-white focus:ring-green-500' : ''}
+                `}
+            >
+                {saveState === 'saving' ? (
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                ) : saveState === 'saved' || !hasUnsavedChanges ? (
+                    <CheckIcon className="w-5 h-5 mr-2" />
+                ) : (
+                    <SaveIcon className="w-5 h-5 mr-2" />
+                )}
+                
+                {saveState === 'saving' ? 'Saving...' : saveState === 'saved' || !hasUnsavedChanges ? 'All Saved' : 'Save Changes'}
+            </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+            {sortedLeads.map(lead => (
+                <div
+                    key={lead.id}
+                    onClick={() => onSelectLead(lead)}
+                    className={`p-4 cursor-pointer border-l-4 ${selectedLead?.id === lead.id ? 'border-purple-600 bg-purple-50' : 'border-transparent hover:bg-gray-50'}`}
+                >
+                    <div className="flex justify-between items-start">
+                        <div className="flex-1 pr-2">
+                            <h4 className="font-semibold text-gray-800">{lead.name}</h4>
+                            <p className="text-sm text-gray-500 truncate">{lead.company}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                                Updated: {formatDateTime(lead.updatedAt)}
+                            </p>
+                        </div>
+                        <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${STATUS_COLORS[lead.status]}`}>
+                            {lead.status}
+                        </span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+interface LeadDetailProps {
+    lead: Lead;
+    isMobile: boolean;
+    onBack: () => void;
+    onChange: (updatedLead: Lead) => void;
+    onDelete: (leadId: string) => void;
+    onOpenWhatsApp: (lead: Lead) => void;
+}
+
+const LeadDetail: React.FC<LeadDetailProps> = ({ lead, isMobile, onBack, onChange, onDelete, onOpenWhatsApp }) => {
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        onChange({ ...lead, [name]: value });
+    };
+
+    return (
+        <div className="p-6 h-full flex flex-col">
+            <div className="flex items-center mb-6">
+                {isMobile && (
+                     <button onClick={onBack} className="mr-4 p-2 rounded-full hover:bg-gray-200">
+                        <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
+                    </button>
+                )}
+                <div className="bg-gray-200 p-3 rounded-full mr-4">
+                    <UserIcon className="w-8 h-8 text-gray-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">{lead.name}</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Name</label>
+                    <input type="text" name="name" value={lead.name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-600">Company</label>
+                    <input type="text" name="company" value={lead.company} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Phone</label>
+                    <input type="text" name="phone" value={lead.phone} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-600">Notes</label>
+                    <textarea name="notes" value={lead.notes} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"></textarea>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-600">Status</label>
+                    <select name="status" value={lead.status} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
+                        {Object.values(LeadStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                <div className="pt-4 flex flex-wrap gap-4 items-center justify-between">
+                    <button
+                        type="button"
+                        onClick={() => onOpenWhatsApp(lead)}
+                        className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 font-medium shadow-sm transition-transform transform hover:scale-105"
+                    >
+                        <WhatsAppIcon className="w-5 h-5 mr-2" />
+                        WhatsApp
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => onDelete(lead.id)} 
+                        className="flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 font-medium shadow-sm transition-transform transform hover:scale-105">
+                        <TrashIcon className="w-5 h-5 mr-2" />
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface AddLeadFormProps {
+    isMobile: boolean;
+    onBack: () => void;
+    onAdd: (newLeadData: Omit<Lead, 'id' | 'updatedAt'>) => void;
+}
+
+const AddLeadForm: React.FC<AddLeadFormProps> = ({ isMobile, onBack, onAdd }) => {
+    const [formData, setFormData] = useState({ name: '', company: '', phone: '', notes: '', status: LeadStatus.New });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value as LeadStatus }));
+    };
+    
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.name || !formData.company) {
+            alert("Name and Company are required.");
+            return;
+        }
+        onAdd(formData as Omit<Lead, 'id' | 'updatedAt'>);
+    };
+    
+    return (
+         <div className="p-6 h-full">
+            <div className="flex items-center mb-6">
+                {isMobile && (
+                     <button onClick={onBack} className="mr-4 p-2 rounded-full hover:bg-gray-200">
+                        <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
+                    </button>
+                )}
+                <h2 className="text-2xl font-bold text-gray-800">Add New Lead</h2>
+            </div>
+             <form className="space-y-4" onSubmit={handleSubmit}>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Name</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500" required/>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Company</label>
+                    <input type="text" name="company" value={formData.company} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500" required/>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Phone</label>
+                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Notes</label>
+                    <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"></textarea>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-600">Status</label>
+                    <select name="status" value={formData.status} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
+                        {Object.values(LeadStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                <div className="pt-4">
+                    <button type="submit" className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">Add Lead</button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+const WelcomeMessage = () => (
+    <div className="h-full flex flex-col justify-center items-center text-center text-gray-500 p-6">
+        <UserIcon className="w-16 h-16 mb-4 text-gray-300" />
+        <h3 className="text-xl font-medium">Select a lead to see details</h3>
+        <p className="mt-1">or add a new lead to get started.</p>
+    </div>
+);
 
 const App = () => {
-    const [leads, setLeads] = useState<Lead[]>(initialLeads);
+    const [persistedLeads, setPersistedLeads] = useState<Lead[]>([]);
+    const [leads, setLeads] = useState<Lead[]>([]);
+    
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
     const [currentView, setCurrentView] = useState<'list' | 'detail' | 'add'>('list');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    // FIX: Add state for WhatsApp modal visibility and selected lead.
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
     const [leadForWhatsApp, setLeadForWhatsApp] = useState<Lead | null>(null);
+    
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [saveState, setSaveState] = useState<SaveState>('idle');
+    const [isLoading, setIsLoading] = useState(true);
 
+    useEffect(() => {
+        const fetchLeads = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch('/.netlify/functions/leads');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch leads: ${response.statusText}`);
+                }
+                const loadedLeads: Lead[] = await response.json();
+                setLeads(loadedLeads);
+                setPersistedLeads(loadedLeads);
+            } catch (error) {
+                console.error("Failed to load leads from database:", error);
+                // Fallback to initial data if DB fails, for demo purposes
+                setLeads(initialLeads);
+                setPersistedLeads(initialLeads);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchLeads();
+    }, []);
+
+    useEffect(() => {
+        const hasChanges = JSON.stringify(leads) !== JSON.stringify(persistedLeads);
+        setHasUnsavedChanges(hasChanges);
+        if (hasChanges) {
+          setSaveState('idle');
+        }
+    }, [leads, persistedLeads]);
+    
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (hasUnsavedChanges) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [hasUnsavedChanges]);
+    
     const sortedLeads = useMemo(() => {
         return [...leads].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     }, [leads]);
@@ -38,7 +311,7 @@ const App = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
+    
     const handleSelectLead = (lead: Lead) => {
         setSelectedLead(lead);
         if (isMobile) setCurrentView('detail');
@@ -60,18 +333,17 @@ const App = () => {
             id: crypto.randomUUID(),
             updatedAt: new Date().toISOString(),
         };
-        const updatedLeads = [...leads, newLead];
-        setLeads(updatedLeads);
+        setLeads(prevLeads => [...prevLeads, newLead]);
         setSelectedLead(newLead);
         if (isMobile) {
             setCurrentView('detail');
         }
     };
     
-    const handleUpdateLead = (updatedLead: Lead) => {
-        const leadWithTimestamp = { ...updatedLead, updatedAt: new Date().toISOString() };
-        setLeads(leads.map(lead => (lead.id === leadWithTimestamp.id ? leadWithTimestamp : lead)));
-        setSelectedLead(leadWithTimestamp);
+    const handleLeadChange = (updatedLead: Lead) => {
+        const updatedLeads = leads.map(lead => (lead.id === updatedLead.id ? updatedLead : lead));
+        setLeads(updatedLeads);
+        setSelectedLead(updatedLead);
     };
 
     const handleDeleteLead = (leadId: string) => {
@@ -84,14 +356,56 @@ const App = () => {
 
     const handleConfirmDelete = () => {
         if (!leadToDelete) return;
-        
-        const updatedLeads = leads.filter(lead => lead.id !== leadToDelete.id);
-        setLeads(updatedLeads);
-        
-        handleBackToList(); // This clears selection and returns to list view on mobile
-        
+        setLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadToDelete.id));
+        handleBackToList();
         setIsDeleteModalOpen(false);
         setLeadToDelete(null);
+    };
+
+    const handleSaveChanges = async () => {
+        if (!hasUnsavedChanges) return;
+        
+        setSaveState('saving');
+        
+        try {
+            const now = new Date().toISOString();
+            const persistedLeadsMap = new Map(persistedLeads.map(l => [l.id, JSON.stringify(l)]));
+            
+            const leadsToSave = leads.map(currentLead => {
+                const originalLead = persistedLeads.find(p => p.id === currentLead.id);
+                const isNew = !originalLead;
+                const isModified = originalLead && JSON.stringify(currentLead) !== JSON.stringify(originalLead);
+
+                if (isNew || isModified) {
+                    return { ...currentLead, updatedAt: now };
+                }
+                return currentLead;
+            });
+            
+            const response = await fetch('/.netlify/functions/leads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(leadsToSave),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to save changes: ${errorText}`);
+            }
+
+            setLeads(leadsToSave);
+            setPersistedLeads(leadsToSave);
+            
+            setSaveState('saved');
+            setTimeout(() => {
+                setSaveState(current => (current === 'saved' ? 'idle' : current));
+            }, 2000);
+
+        } catch (error) {
+            console.error("Failed to save leads:", error);
+            setSaveState('idle');
+            alert('Failed to save changes. Please try again.');
+        }
     };
     
     const handleOpenWhatsAppModal = (lead: Lead) => {
@@ -108,200 +422,21 @@ const App = () => {
             hour12: true,
         });
     };
-
-    const LeadList = () => (
-        <div className="flex flex-col h-full bg-white border-r border-gray-200">
-            <div className="p-4 border-b">
-                <button
-                    onClick={handleShowAddForm}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 font-medium shadow-sm"
-                >
-                    <PlusIcon className="w-5 h-5 mr-2" />
-                    Add New Lead
-                </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-                {sortedLeads.map(lead => (
-                    <div
-                        key={lead.id}
-                        onClick={() => handleSelectLead(lead)}
-                        className={`p-4 cursor-pointer border-l-4 ${selectedLead?.id === lead.id ? 'border-purple-600 bg-purple-50' : 'border-transparent hover:bg-gray-50'}`}
-                    >
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1 pr-2">
-                                <h4 className="font-semibold text-gray-800">{lead.name}</h4>
-                                <p className="text-sm text-gray-500 truncate">{lead.company}</p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                    Updated: {formatDateTime(lead.updatedAt)}
-                                </p>
-                            </div>
-                            <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${STATUS_COLORS[lead.status]}`}>
-                                {lead.status}
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-    
-    const LeadDetail = ({ lead }: { lead: Lead }) => {
-        const [formData, setFormData] = useState(lead);
-
-        const WhatsAppIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-            <svg viewBox="0 0 32 32" fill="currentColor" {...props}>
-                <path d=" M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.09-.832-2.335-.143-.372-.214-.487-.6-.487-.187 0-.36-.044-.53-.044-.302 0-.53.115-.746.315-.688.645-1.032 1.318-1.06 2.264v.114c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.38.288-.73.288-1.49.214-1.665-.073-.17-.302-.315-.64-.315zm-6.44 10.742a13.913 13.913 0 0 1-7.592-2.148l-1.615.824 1.17-1.57-.27-.417a11.96 11.96 0 0 1-1.51-5.32c0-6.525 5.27-11.795 11.795-11.795 6.525 0 11.795 5.27 11.795 11.795 0 6.525-5.27 11.795-11.795 11.795zm0-25.215a13.427 13.427 0 0 0-13.425 13.426c0 2.458.65 4.71 1.823 6.625l-2.12 2.822 3.028-1.58a13.38 13.38 0 0 0 6.13 1.58h.01c7.415 0 13.426-6.01 13.426-13.425C26.095 6.012 20.085 0 12.67 0z" />
-            </svg>
-        );
-
-        useEffect(() => {
-            setFormData(lead);
-        }, [lead]);
-
-        const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-            const { name, value } = e.target;
-            setFormData(prev => ({ ...prev, [name]: value }));
-        };
-
-        const handleSaveChanges = (e: React.FormEvent) => {
-            e.preventDefault();
-            handleUpdateLead(formData);
-        };
-
-        return (
-            <div className="p-6 h-full flex flex-col">
-                <div className="flex items-center mb-6">
-                    {isMobile && (
-                         <button onClick={handleBackToList} className="mr-4 p-2 rounded-full hover:bg-gray-200">
-                            <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
-                        </button>
-                    )}
-                    <div className="bg-gray-200 p-3 rounded-full mr-4">
-                        <UserIcon className="w-8 h-8 text-gray-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800">{lead.name}</h2>
-                </div>
-                <form className="flex-1 overflow-y-auto space-y-4" onSubmit={handleSaveChanges}>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Name</label>
-                        <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-600">Company</label>
-                        <input type="text" name="company" value={formData.company} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Phone</label>
-                        <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-600">Notes</label>
-                        <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"></textarea>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-600">Status</label>
-                        <select name="status" value={formData.status} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
-                            {Object.values(LeadStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </div>
-                    <div className="pt-4 flex flex-wrap gap-4 items-center justify-between">
-                        <div className="flex flex-wrap gap-4 items-center">
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-medium">Save Changes</button>
-                            <button
-                                type="button"
-                                onClick={() => handleOpenWhatsAppModal(lead)}
-                                className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 font-medium shadow-sm transition-transform transform hover:scale-105"
-                            >
-                                <WhatsAppIcon className="w-5 h-5 mr-2" />
-                                WhatsApp
-                            </button>
-                        </div>
-                        <button 
-                            type="button" 
-                            onClick={() => handleDeleteLead(lead.id)} 
-                            className="flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 font-medium shadow-sm transition-transform transform hover:scale-105">
-                            <TrashIcon className="w-5 h-5 mr-2" />
-                            Delete
-                        </button>
-                    </div>
-                </form>
-            </div>
-        );
-    };
-
-    const AddLeadForm = () => {
-        const [formData, setFormData] = useState({ name: '', company: '', phone: '', notes: '', status: LeadStatus.New });
-
-        const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-            const { name, value } = e.target;
-            setFormData(prev => ({ ...prev, [name]: value as LeadStatus }));
-        };
-        
-        const handleSubmit = (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!formData.name || !formData.company) {
-                alert("Name and Company are required.");
-                return;
-            }
-            handleAddLead(formData as Omit<Lead, 'id' | 'updatedAt'>);
-        };
-        
-        return (
-             <div className="p-6 h-full">
-                <div className="flex items-center mb-6">
-                    {isMobile && (
-                         <button onClick={handleBackToList} className="mr-4 p-2 rounded-full hover:bg-gray-200">
-                            <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
-                        </button>
-                    )}
-                    <h2 className="text-2xl font-bold text-gray-800">Add New Lead</h2>
-                </div>
-                 <form className="space-y-4" onSubmit={handleSubmit}>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Name</label>
-                        <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500" required/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Company</label>
-                        <input type="text" name="company" value={formData.company} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500" required/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Phone</label>
-                        <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Notes</label>
-                        <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"></textarea>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600">Status</label>
-                        <select name="status" value={formData.status} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
-                            {Object.values(LeadStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </div>
-                    <div className="pt-4">
-                        <button type="submit" className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">Add Lead</button>
-                    </div>
-                </form>
-            </div>
-        );
-    };
-    
-    const WelcomeMessage = () => (
-        <div className="h-full flex flex-col justify-center items-center text-center text-gray-500 p-6">
-            <UserIcon className="w-16 h-16 mb-4 text-gray-300" />
-            <h3 className="text-xl font-medium">Select a lead to see details</h3>
-            <p className="mt-1">or add a new lead to get started.</p>
-        </div>
-    );
     
     const renderMainContent = () => {
         const showAddForm = !selectedLead && (!isMobile || currentView === 'add');
         if (showAddForm) {
-            return <AddLeadForm />;
+            return <AddLeadForm isMobile={isMobile} onBack={handleBackToList} onAdd={handleAddLead} />;
         }
         if (selectedLead && (!isMobile || currentView === 'detail')) {
-            return <LeadDetail lead={selectedLead} />;
+            return <LeadDetail 
+                lead={selectedLead}
+                isMobile={isMobile}
+                onBack={handleBackToList}
+                onChange={handleLeadChange}
+                onDelete={handleDeleteLead}
+                onOpenWhatsApp={handleOpenWhatsAppModal}
+            />;
         }
         if (!isMobile) {
             return <WelcomeMessage />;
@@ -309,6 +444,19 @@ const App = () => {
         return null;
     };
 
+    if (isLoading) {
+        return (
+            <div className="h-screen w-screen flex justify-center items-center bg-gray-100">
+                <div className="flex flex-col items-center">
+                    <svg className="animate-spin h-10 w-10 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="mt-4 text-lg text-gray-600">Loading Leads from Database...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen w-screen bg-gray-100 font-sans flex flex-col">
@@ -320,7 +468,16 @@ const App = () => {
             <div className="flex-1 flex overflow-hidden">
                 {(!isMobile || currentView === 'list') && (
                     <aside className="w-full md:w-1/3 lg:w-1/4 h-full">
-                       <LeadList />
+                       <LeadList 
+                         sortedLeads={sortedLeads}
+                         selectedLead={selectedLead}
+                         onSelectLead={handleSelectLead}
+                         onShowAddForm={handleShowAddForm}
+                         formatDateTime={formatDateTime}
+                         onSaveChanges={handleSaveChanges}
+                         hasUnsavedChanges={hasUnsavedChanges}
+                         saveState={saveState}
+                       />
                     </aside>
                 )}
                 {(!isMobile || currentView !== 'list') && (

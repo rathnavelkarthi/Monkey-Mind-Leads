@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "drizzle-orm": "^0.30.10",
+    "postgres": "^3.4.4"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Lead, LeadStatus } from './types';
-import { WhatsAppModal } from './components/EmailModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { UserIcon } from './components/icons/UserIcon';
-import { SparklesIcon } from './components/icons/SparklesIcon';
 import { PlusIcon } from './components/icons/PlusIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { TrashIcon } from './components/icons/TrashIcon';
@@ -22,7 +20,6 @@ type View = 'list' | 'detail' | 'add';
 const App = () => {
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
     const [currentView, setCurrentView] = useState<'list' | 'detail' | 'add'>('list');
@@ -51,11 +48,6 @@ const App = () => {
     const handleBackToList = () => {
         setCurrentView('list');
         setSelectedLead(null);
-    };
-
-    const handleOpenWhatsAppModal = (lead: Lead) => {
-        setSelectedLead(lead);
-        setIsWhatsAppModalOpen(true);
     };
     
     const handleAddLead = (newLeadData: Omit<Lead, 'id' | 'updatedAt'>) => {
@@ -199,10 +191,6 @@ const App = () => {
                     </div>
                     <div className="pt-4 flex flex-wrap gap-4 items-center justify-between">
                         <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-medium">Save Changes</button>
-                        <button type="button" onClick={() => handleOpenWhatsAppModal(lead)} className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 font-medium">
-                            <SparklesIcon className="w-5 h-5 mr-2" />
-                            AI Message
-                        </button>
                         <button 
                             type="button" 
                             onClick={() => handleDeleteLead(lead.id)} 
@@ -316,11 +304,6 @@ const App = () => {
                     </main>
                 )}
             </div>
-            <WhatsAppModal
-                isOpen={isWhatsAppModalOpen}
-                onClose={() => setIsWhatsAppModalOpen(false)}
-                lead={selectedLead}
-            />
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => {

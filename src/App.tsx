@@ -3,7 +3,6 @@ import { Lead, LeadStatus } from './types';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { UserIcon } from './components/icons/UserIcon';
-import { SparklesIcon } from './components/icons/SparklesIcon';
 import { PlusIcon } from './components/icons/PlusIcon';
 import { ArrowLeftIcon } from './components/icons/ArrowLeftIcon';
 import { TrashIcon } from './components/icons/TrashIcon';
@@ -22,11 +21,13 @@ type View = 'list' | 'detail' | 'add';
 const App = () => {
     const [leads, setLeads] = useState<Lead[]>(initialLeads);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
     const [currentView, setCurrentView] = useState<'list' | 'detail' | 'add'>('list');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    // FIX: Add state for WhatsApp modal visibility and selected lead.
+    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+    const [leadForWhatsApp, setLeadForWhatsApp] = useState<Lead | null>(null);
 
     const sortedLeads = useMemo(() => {
         return [...leads].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -51,11 +52,6 @@ const App = () => {
     const handleBackToList = () => {
         setCurrentView('list');
         setSelectedLead(null);
-    };
-
-    const handleOpenWhatsAppModal = (lead: Lead) => {
-        setSelectedLead(lead);
-        setIsWhatsAppModalOpen(true);
     };
     
     const handleAddLead = (newLeadData: Omit<Lead, 'id' | 'updatedAt'>) => {
@@ -98,6 +94,11 @@ const App = () => {
         setLeadToDelete(null);
     };
     
+    const handleOpenWhatsAppModal = (lead: Lead) => {
+        setLeadForWhatsApp(lead);
+        setIsWhatsAppModalOpen(true);
+    };
+
     const formatDateTime = (isoString: string) => {
         return new Date(isoString).toLocaleString('en-US', {
             month: 'short',
@@ -146,6 +147,12 @@ const App = () => {
     
     const LeadDetail = ({ lead }: { lead: Lead }) => {
         const [formData, setFormData] = useState(lead);
+
+        const WhatsAppIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+            <svg viewBox="0 0 32 32" fill="currentColor" {...props}>
+                <path d=" M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.09-.832-2.335-.143-.372-.214-.487-.6-.487-.187 0-.36-.044-.53-.044-.302 0-.53.115-.746.315-.688.645-1.032 1.318-1.06 2.264v.114c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.38.288-.73.288-1.49.214-1.665-.073-.17-.302-.315-.64-.315zm-6.44 10.742a13.913 13.913 0 0 1-7.592-2.148l-1.615.824 1.17-1.57-.27-.417a11.96 11.96 0 0 1-1.51-5.32c0-6.525 5.27-11.795 11.795-11.795 6.525 0 11.795 5.27 11.795 11.795 0 6.525-5.27 11.795-11.795 11.795zm0-25.215a13.427 13.427 0 0 0-13.425 13.426c0 2.458.65 4.71 1.823 6.625l-2.12 2.822 3.028-1.58a13.38 13.38 0 0 0 6.13 1.58h.01c7.415 0 13.426-6.01 13.426-13.425C26.095 6.012 20.085 0 12.67 0z" />
+            </svg>
+        );
 
         useEffect(() => {
             setFormData(lead);
@@ -198,11 +205,17 @@ const App = () => {
                         </select>
                     </div>
                     <div className="pt-4 flex flex-wrap gap-4 items-center justify-between">
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-medium">Save Changes</button>
-                        <button type="button" onClick={() => handleOpenWhatsAppModal(lead)} className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 font-medium">
-                            <SparklesIcon className="w-5 h-5 mr-2" />
-                            AI Message
-                        </button>
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-medium">Save Changes</button>
+                            <button
+                                type="button"
+                                onClick={() => handleOpenWhatsAppModal(lead)}
+                                className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 font-medium shadow-sm transition-transform transform hover:scale-105"
+                            >
+                                <WhatsAppIcon className="w-5 h-5 mr-2" />
+                                WhatsApp
+                            </button>
+                        </div>
                         <button 
                             type="button" 
                             onClick={() => handleDeleteLead(lead.id)} 
@@ -316,11 +329,6 @@ const App = () => {
                     </main>
                 )}
             </div>
-            <WhatsAppModal
-                isOpen={isWhatsAppModalOpen}
-                onClose={() => setIsWhatsAppModalOpen(false)}
-                lead={selectedLead}
-            />
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => {
@@ -330,6 +338,11 @@ const App = () => {
                 onConfirm={handleConfirmDelete}
                 title="Delete Lead"
                 message={leadToDelete ? `Are you sure you want to permanently delete "${leadToDelete.name}"? This action cannot be undone.` : ''}
+            />
+            <WhatsAppModal 
+                isOpen={isWhatsAppModalOpen}
+                onClose={() => setIsWhatsAppModalOpen(false)}
+                lead={leadForWhatsApp}
             />
         </div>
     );

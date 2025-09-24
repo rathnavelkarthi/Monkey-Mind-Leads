@@ -11,20 +11,22 @@ export const generateWhatsAppMessage = async (lead: Lead): Promise<string> => {
     });
 
     if (!response.ok) {
-      // The server responded with an error. We need to figure out if it's a
-      // structured JSON error from our function, or an HTML page from Netlify.
+      // The server responded with an error. Read the body as text ONCE.
+      const errorBody = await response.text();
       let errorMessage = `Request failed with status: ${response.status}`;
+      
       try {
-        const errorData = await response.json();
-        // If we get here, it's a JSON error from our function.
+        // Try to parse the text as JSON.
+        const errorData = JSON.parse(errorBody);
+        // If it's a structured error from our function, use that message.
         errorMessage = errorData.error || JSON.stringify(errorData);
       } catch (e) {
-        // If response.json() fails, it's not JSON. It's likely an HTML error page.
-        const textResponse = await response.text();
-        if (textResponse && textResponse.toLowerCase().includes('<!doctype html')) {
+        // If parsing fails, it's not JSON. It's likely an HTML error page.
+        if (errorBody && errorBody.toLowerCase().includes('<!doctype html')) {
           errorMessage = `Server returned an HTML error page (status ${response.status}). This can happen if the API route is not found. Check the Netlify function logs.`;
         } else {
-          errorMessage = textResponse || `An unknown server error occurred.`;
+          // Otherwise, it's just some other text response.
+          errorMessage = errorBody || `An unknown server error occurred.`;
         }
       }
       throw new Error(errorMessage);
